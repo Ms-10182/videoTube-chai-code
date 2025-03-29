@@ -5,6 +5,8 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteOldAsset } from "../utils/deleteOldAsset.js";
+
 
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
@@ -54,7 +56,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     thumbnail: thumbnailFile.url,
     title,
     description,
-    duration: videoFile.duration || 0, // Fallback to 0 if duration is not provided
+    duration: videoFile?.duration || 0, // Ensure duration is safely accessed
     views: 0,
     isPublished: true,
     owner: req.user?._id,
@@ -67,7 +69,10 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  //TODO: get video by id
+
+  if (!videoId || !isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid or missing video ID.");
+  }
 
   if (!videoId) {
     throw new ApiError(400, "video Id is required");
@@ -86,14 +91,22 @@ const getVideoById = asyncHandler(async (req, res) => {
 
 const updateVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  //TODO: update video details like title, description, thumbnail
-  if(!videoId){
-    throw new ApiError(400,"video id not provided");
+
+  if (!videoId || !isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid or missing video ID.");
   }
 
-  const { title, description, thumbnail } = req.body;
+  if (!videoId) {
+    throw new ApiError(400, "Video ID not provided.");
+  }
+
+  const { title, description } = req.body;
 
   const video = await Video.findById(videoId);
+
+  if (!video) {
+    throw new ApiError(404, "Video not found.");
+  }
 
   if (title) {
     video.title = title;
@@ -102,26 +115,74 @@ const updateVideo = asyncHandler(async (req, res) => {
   if (description) {
     video.description = description;
   }
-  if (thumbnail) {
-    const thumbnailPath = req.files?.thumbnail[0].path;
+
+  if (req.files?.thumbnail?.[0]?.path) {
+    const oldThumbnail = video.thumbnail;
+    try {
+      await deleteOldAsset(oldThumbnail);
+    } catch (error) {
+      throw new ApiError(500, "Failed to delete old thumbnail.");
+    }
+    const thumbnailPath = req.files.thumbnail[0].path;
     const thumbnailFile = await uploadOnCloudinary(thumbnailPath);
     video.thumbnail = thumbnailFile.url;
   }
 
-  await video.save({validateBeforeSave:false});
+  await video.save({ validateBeforeSave: false });
 
-  res.status(200).json(new ApiResponse(200,{},"video updated sucessfully"))
-
-
+  res.status(200).json(new ApiResponse(200, video, "Video updated successfully."));
 });
 
 const deleteVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  //TODO: delete video
+
+  if (!videoId || !isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid or missing video ID.");
+  }
+
+  if (!videoId) {
+    throw new ApiError(400, "video id not found");
+  }
+
+  const video = await Video.findById(videoId); // Added await here to fetch the video
+
+  if (!video) {
+    throw new ApiError(404, "Video not found.");
+  }
+
+  try {
+    await deleteOldAsset(video.thumbnail);
+    await deleteOldAsset(video.videoFile);
+  } catch (error) {
+    throw new ApiError(500, "Failed to delete video assets.");
+  }
+
+  await video.deleteOne(); // Delete the video document from the database
+
+  res.status(200).json(new ApiResponse(200, null, "Video deleted successfully."));
 });
 
 const togglePublishStatus = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
+
+  if (!videoId || !isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid or missing video ID.");
+  }
+
+  if (!videoId) {
+    throw new ApiError(400, "Video ID not provided.");
+  }
+
+  const video = await Video.findById(videoId);
+
+  if (!video) {
+    throw new ApiError(404, "Video not found.");
+  }
+
+  video.isPublished = !video.isPublished;
+  await video.save({validateBeforeSave:false});
+
+  res.status(200).json(new ApiResponse(200, video, "Publish status toggled successfully."));
 });
 
 export {
