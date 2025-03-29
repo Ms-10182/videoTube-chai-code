@@ -1,6 +1,5 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import { Video } from "../models/video.model.js";
-import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -41,7 +40,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     videoFile = await uploadOnCloudinary(videolocalPath);
     thumbnailFile = await uploadOnCloudinary(thumbnailPath);
   } catch (error) {
-    throw new ApiError(500, "Error uploading files to Cloudinary.");
+    throw new ApiError(500, "Error uploading files to Cloudinary.",error);
   }
 
   if (!videoFile || !videoFile.url) {
@@ -74,9 +73,6 @@ const getVideoById = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid or missing video ID.");
   }
 
-  if (!videoId) {
-    throw new ApiError(400, "video Id is required");
-  }
 
   const video = await Video.findById(videoId);
 
@@ -96,10 +92,6 @@ const updateVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid or missing video ID.");
   }
 
-  if (!videoId) {
-    throw new ApiError(400, "Video ID not provided.");
-  }
-
   const { title, description } = req.body;
 
   const video = await Video.findById(videoId);
@@ -107,6 +99,9 @@ const updateVideo = asyncHandler(async (req, res) => {
   if (!video) {
     throw new ApiError(404, "Video not found.");
   }
+
+  const isUserValid = video.owner.toString()=== req.user._id.toString()
+  if(!isUserValid){ throw new ApiError(401,"your are not authorized")}
 
   if (title) {
     video.title = title;
@@ -140,15 +135,14 @@ const deleteVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid or missing video ID.");
   }
 
-  if (!videoId) {
-    throw new ApiError(400, "video id not found");
-  }
-
   const video = await Video.findById(videoId); // Added await here to fetch the video
 
   if (!video) {
     throw new ApiError(404, "Video not found.");
   }
+  const isUserValid = video.owner.toString()=== req.user._id.toString()
+  if(!isUserValid){ throw new ApiError(401,"your are not authorized")}
+
 
   try {
     await deleteOldAsset(video.thumbnail);
@@ -169,15 +163,15 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid or missing video ID.");
   }
 
-  if (!videoId) {
-    throw new ApiError(400, "Video ID not provided.");
-  }
-
   const video = await Video.findById(videoId);
 
   if (!video) {
     throw new ApiError(404, "Video not found.");
   }
+
+  const isUserValid = video.owner.toString()=== req.user._id.toString()
+  if(!isUserValid){ throw new ApiError(401,"your are not authorized")}
+
 
   video.isPublished = !video.isPublished;
   await video.save({validateBeforeSave:false});
