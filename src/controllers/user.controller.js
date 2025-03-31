@@ -285,7 +285,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
-  const avatarLocalPath = req.files?.avatar[0]?.path;
+  const avatarLocalPath = req.file?.path ;
 
   if (!avatarLocalPath) throw new ApiError(400, "avatar file is missing");
 
@@ -314,19 +314,23 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 });
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
-  if (!coverImageLocalPath)
+  const coverImageLocalPath = req.file?.path ;
+
+  if (!coverImageLocalPath) {
     throw new ApiError(400, "coverimage file not uploaded");
+  }
 
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-  if (!coverImage)
+  if (!coverImage) {
     throw new ApiError(400, "error while upload coverimage to cloud");
+  }
 
   const oldImageUrl = req.user.coverImage;
-//   console.log("old image url:", oldImageUrl);
   const deleteStatus = await deleteOldAsset(oldImageUrl);
 
-  console.log(deleteStatus);
+  if (!deleteStatus) {
+    throw new ApiError(500, "failed to delete old asset");
+  }
 
   const updatedUser = await User.findByIdAndUpdate(
     req.user?._id,
@@ -335,9 +339,10 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     },
     { new: true }
   ).select("-password");
+
   res
     .status(200)
-    .json(new ApiResponse(200, updatedUser, "coverimage uploaded sucessfully"));
+    .json(new ApiResponse(200, updatedUser, "coverimage uploaded successfully"));
 });
 
 const getUserChannelProfile = asyncHandler(async (req, res) => {
