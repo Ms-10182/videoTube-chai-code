@@ -127,4 +127,12 @@ const getLikedVideos = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, likedVideos, "fetched all videos successfully"));
 });
 
+const getLikedTweets = asyncHandler(async(req,res)=>{
+  if(!req.user){
+    throw new ApiError(400,"unauthorized access")
+  }
+
+  
+})
+
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };
