@@ -63,8 +63,8 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
   //TODO: toggle like on tweet
 
-  if(!tweetId){
-    throw new ApiError(400,"tweet id is required")
+  if (!tweetId) {
+    throw new ApiError(400, "tweet id is required");
   }
   const isTweetExists = await Tweet.findById(tweetId);
 
@@ -97,25 +97,25 @@ const getLikedVideos = asyncHandler(async (req, res) => {
 
   const likedVideos = await Like.aggregate([
     {
-      $match: { video: { $exists: true }, likedBy: req.user._id } // Match only likes with a video reference
+      $match: { video: { $exists: true }, likedBy: req.user._id }, // Match only likes with a video reference
     },
     {
       $lookup: {
         from: "videos", // Join with the Video collection
         localField: "video",
         foreignField: "_id",
-        as: "likedVideos"
-      }
+        as: "likedVideos",
+      },
     },
     {
-      $unwind: "$likedVideos" // Flatten the likedVideos array
+      $unwind: "$likedVideos", // Flatten the likedVideos array
     },
     {
       $project: {
         _id: 0, // Exclude the _id field from the result
-        likedVideos: 1 // Include only the likedVideos field
-      }
-    }
+        likedVideos: 1, // Include only the likedVideos field
+      },
+    },
   ]);
 
   if (!likedVideos || likedVideos.length === 0) {
@@ -127,12 +127,38 @@ const getLikedVideos = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, likedVideos, "fetched all videos successfully"));
 });
 
-const getLikedTweets = asyncHandler(async(req,res)=>{
-  if(!req.user){
-    throw new ApiError(400,"unauthorized access")
+const getLikedTweets = asyncHandler(async (req, res) => {
+  if (!req.user) {
+    throw new ApiError(400, "unauthorized access");
   }
 
-  
-})
+  const likedTweets = await Like.aggregate([
+    {
+      $match: { tweet: { $exists: true }, likedBy: req.user._id },
+    },{
+      $lookup:{
+        from:"tweets",
+        localField:"tweet",
+        foreignField:"_id",
+        as:"likedTweets"
+      }
+    },
+    {
+      $unwind:"$likedTweets"
+    },
+    {
+      $project:{
+        likedTweets:1,
+        _id:0
+      }
+    }
+  ]);
 
-export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };
+  if(!likedTweets){
+    throw new ApiError(500,"failed to fetch liketweets");
+  }
+
+  res.status(200).json(new ApiResponse(200,likedTweets,"tweets fetched successfully"))
+});
+
+export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos,getLikedTweets };
